@@ -5,139 +5,180 @@ import random
 class Knot:
     def __init__(self,gauss):
         self.gauss = gauss
-        self.nodes = len(gauss)
         self.unknot = False
         self.nochange = 0
         self.lastprint = str(gauss)
 
     def clean_gauss(self):
         #This functions cleans the gauss code after every move
-        found = [0]
-        missing = []
         if not self.gauss:
-            #check if knot is done
             self.unknot = True
             if self.lastprint != str(self.gauss):
                 print(self.gauss)
                 self.lastprint = str(self.gauss)
-            return None
-        for element in self.gauss:
-            #check if elements are in numerical order (mainly for R2 and aesthetics)
-            if abs(element) == found[-1] + 1:
-                found.append(abs(element))
-            elif abs(element) > found[-1] + 1:
-                switch = [[],[]]
-                for index, element_2 in enumerate(self.gauss):
-                    if abs(element_2) == abs(element):
-                        switch[0].append(index)
-                    if abs(element_2) == found[-1] + 1:
-                        switch[1].append(index)
-                if switch[1]:
-                    #Switch numbers that appear "too early" in the sequence with their later occuring counterparts.
-                    #This doesn't mutate the knot in any way but "renames" the overlaps.
-                    next_gauss = self.gauss[:]
-                    if self.gauss[switch[0][0]] * self.gauss[switch[1][0]] > 0:
-                        next_gauss[switch[0][0]] = self.gauss[switch[1][0]]
-                        next_gauss[switch[0][1]] = self.gauss[switch[1][1]]
-                        next_gauss[switch[1][0]] = self.gauss[switch[0][0]]
-                        next_gauss[switch[1][1]] = self.gauss[switch[0][1]]
+            return
+
+        # Repeat until no more swaps / renumberings are needed.
+        while True:
+            made_change = False
+            found = [0]
+            missing = []
+
+            # iterate by index to avoid iterator invalidation if self.gauss changes
+            for idx in range(len(self.gauss)):
+                element = self.gauss[idx]
+                if abs(element) == found[-1] + 1:
+                    found.append(abs(element))
+                elif abs(element) > found[-1] + 1:
+                    # find positions of this element and the "expected" next number
+                    switch = [[], []]
+                    for j, elem_j in enumerate(self.gauss):
+                        if abs(elem_j) == abs(element):
+                            switch[0].append(j)
+                        if abs(elem_j) == found[-1] + 1:
+                            switch[1].append(j)
+
+                    if switch[1]:
+                        # perform the swap/rename and restart the outer while loop
+                        next_gauss = self.gauss[:]
+                        if self.gauss[switch[0][0]] * self.gauss[switch[1][0]] > 0:
+                            next_gauss[switch[0][0]] = self.gauss[switch[1][0]]
+                            next_gauss[switch[0][1]] = self.gauss[switch[1][1]]
+                            next_gauss[switch[1][0]] = self.gauss[switch[0][0]]
+                            next_gauss[switch[1][1]] = self.gauss[switch[0][1]]
+                        else:
+                            next_gauss[switch[0][0]] = self.gauss[switch[1][1]]
+                            next_gauss[switch[0][1]] = self.gauss[switch[1][0]]
+                            next_gauss[switch[1][0]] = self.gauss[switch[0][1]]
+                            next_gauss[switch[1][1]] = self.gauss[switch[0][0]]
+
+                        self.gauss = next_gauss
+                        made_change = True
+                        break      # restart scanning from the top
+
                     else:
-                        next_gauss[switch[0][0]] = self.gauss[switch[1][1]]
-                        next_gauss[switch[0][1]] = self.gauss[switch[1][0]]
-                        next_gauss[switch[1][0]] = self.gauss[switch[0][1]]
-                        next_gauss[switch[1][1]] = self.gauss[switch[0][0]]
-                    self.gauss = next_gauss
-                    #call function again in case more have to be switched
-                    self.clean_gauss()
-                else:
-                    for i in range(found[-1] + 1,abs(element)):
-                        missing.append(i)
-                found.append(abs(element))
-        missing.sort(reverse=True)
-        for miss in missing:
-            #fill gaps by (absolutely) decreasing all numbers that are bigger than the missing ones
-            for index, element in enumerate(self.gauss):
-                if abs(element) > miss:
-                    if element > 0:
-                        self.gauss[index] -= 1
-                    if element < 0:
-                        self.gauss[index] += 1
-        if self.gauss[0] == -1:
-            #make code prettier by always having +1 at the start
-            new_gauss = [-x for x in self.gauss]
-            self.gauss = new_gauss
-        if self.lastprint != str(self.gauss):
-            print(self.gauss)
-            self.lastprint = str(self.gauss)
+                        for missing_num in range(found[-1] + 1, abs(element)):
+                            missing.append(missing_num)
+
+                    found.append(abs(element))
+
+            if made_change:
+                continue  # re-scan after rename/swap
+
+            # apply missing-number compression (decrease labels above gaps)
+            if missing:
+                missing.sort(reverse=True)
+                for miss in missing:
+                    for index, element in enumerate(self.gauss):
+                        if abs(element) > miss:
+                            self.gauss[index] = element - 1 if element > 0 else element + 1
+                # after renumbering, re-scan to catch any newly-exposed renames
+                continue
+
+            # prettify: prefer +1 at start (only if list non-empty)
+            if self.gauss and self.gauss[0] == -1:
+                self.gauss = [-x for x in self.gauss]
+
+            # print only when changed
+            if self.lastprint != str(self.gauss):
+                print(self.gauss)
+                self.lastprint = str(self.gauss)
+
+            break  # stable, exit
 
     def reidemeister_1(self):
         #remove two nodes (a, -a) that are adjacent and part of the same overlap. Easy!
         #can even handle more of these occurences at once
-        candidates = []
-        for index, element in enumerate(self.gauss):
-            if element == -self.gauss[(index+1)%self.nodes]:
-                candidates.append(index)
-                candidates.append((index+1)%self.nodes)
-        candidates = sorted(list(dict.fromkeys(candidates)), reverse=True)
-        if candidates:
-            self.nochange = 0
-            print(str(len(candidates)//2) + ' x Reidemeister I found!')
-            for i in candidates:
-                del self.gauss[i]
-                self.nodes -= 1
-        else:
+        n = len(self.gauss)
+        if n == 0:
             self.nochange += 1
+            return
+
+        candidates = [i for i in range(n) if self.gauss[i] == -self.gauss[(i + 1) % n]]
+
+        if not candidates:
+            self.nochange += 1
+            return
+
+        self.nochange = 0
+        # build delete set from original indices (safe), then delete in reverse order
+        original_len = n
+        to_delete = set(candidates) | { (i + 1) % original_len for i in candidates }
+        indices_to_delete = sorted(to_delete, reverse=True)
+
+        print(f"{len(indices_to_delete)//2} x Reidemeister I found!")
+        for idx in indices_to_delete:
+            del self.gauss[idx]
+
+        # now do a safe clean
         self.clean_gauss()
 
     def reidemeister_2(self):
         #remove four nodes (a, b ... [-a, -b] xor [-b, -a])
-        candidates = []
-        for index, element in enumerate(self.gauss):
-            possible_pair = []
-            if element * self.gauss[(index+1)%self.nodes] > 0:
-                possible_pair = [abs(element), abs(self.gauss[(index+1)%self.nodes])]
-                possible_pair.sort()
-            for index_partner, element_partner in enumerate(self.gauss):
-                if possible_pair == sorted([abs(element_partner), abs(self.gauss[(index_partner+1)%self.nodes])]):
-                    quad = set([index, (index+1)%self.nodes, index_partner, (index_partner+1)%self.nodes])
-                    if len(quad) == 4:
-                        candidates = sorted(list(dict.fromkeys(quad)), reverse=True)
+        n = len(self.gauss)
+        if n < 4:
+            self.nochange += 1
+            return
+
+        pair_map = {}  # maps (a,b) → list of start indices
+        for i in range(n):
+            a, b = self.gauss[i], self.gauss[(i + 1) % n]
+            if a * b > 0:  # both same sign → possible R2
+                key = tuple(sorted((abs(a), abs(b))))
+                pair_map.setdefault(key, []).append(i)
+
+        candidates = None
+        for (a, b), starts in pair_map.items():
+            if len(starts) >= 2:
+                # check distinct quads
+                for i in range(len(starts)):
+                    for j in range(i + 1, len(starts)):
+                        quad = {starts[i], (starts[i] + 1) % n,
+                                starts[j], (starts[j] + 1) % n}
+                        if len(quad) == 4:  # valid distinct 4 nodes
+                            candidates = sorted(quad, reverse=True)
+                            break
+                    if candidates:
+                        break
+            if candidates:
+                break
+
         if candidates:
             self.nochange = 0
-            print('Reidemeister II found!')
-            for i in candidates:
-                del self.gauss[i]
-                self.nodes -= 1
+            print("Reidemeister II found!")
+            for idx in candidates:
+                del self.gauss[idx]
+            self.clean_gauss()
         else:
             self.nochange += 1
-        self.clean_gauss()
 
     def reidemeister_3(self):
         #performs triangle operation on six nodes (a, b ... [-a, c] xor [c, -a] ... [-b, -c] xor [-c , -b])
         #a, b stays in place. The rest gets moved around: -a becomes c becomes -b becomes -c becomes -a
         candidates = []
-        if self.nodes > 7:
+        n = len(self.gauss)
+        if n > 7:
             #only do this for at least 8 nodes. R1 and R2 are better for 6, 4 or 2 nodes for obvious reasons
             for index, element in enumerate(self.gauss):
                 #find a and b
-                if element > 0 and self.gauss[(index+1)%self.nodes] > 0:
-                    candidates.append([[index,(index+1)%self.nodes],[self.gauss.index(-element)],[self.gauss.index(-self.gauss[(index+1)%self.nodes])]])
+                if element > 0 and self.gauss[(index+1)%n] > 0:
+                    candidates.append([[index,(index+1)%n],[self.gauss.index(-element)],[self.gauss.index(-self.gauss[(index+1)%n])]])
                     if self.gauss[candidates[-1][1][0]-1] == -self.gauss[candidates[-1][2][0]-1]:
                         #both c and -c appear before -a and -b in the code
                         candidates[-1][1].append(candidates[-1][1][0]-1)
                         candidates[-1][2].append(candidates[-1][2][0]-1)
-                    elif self.gauss[candidates[-1][1][0]-1] == -self.gauss[(candidates[-1][2][0]+1)%self.nodes]:
+                    elif self.gauss[candidates[-1][1][0]-1] == -self.gauss[(candidates[-1][2][0]+1)%n]:
                         #c appears before -a and -c appears after -b in the code
                         candidates[-1][1].append(candidates[-1][1][0]-1)
-                        candidates[-1][2].append((candidates[-1][2][0]+1)%self.nodes)
-                    if self.gauss[(candidates[-1][1][0]+1)%self.nodes] == -self.gauss[candidates[-1][2][0]-1]:
+                        candidates[-1][2].append((candidates[-1][2][0]+1)%n)
+                    if self.gauss[(candidates[-1][1][0]+1)%n] == -self.gauss[candidates[-1][2][0]-1]:
                         #c appears after -a and -c appears before -b in the code
-                        candidates[-1][1].append((candidates[-1][1][0]+1)%self.nodes)
+                        candidates[-1][1].append((candidates[-1][1][0]+1)%n)
                         candidates[-1][2].append(candidates[-1][2][0]-1)
-                    elif self.gauss[(candidates[-1][1][0]+1)%self.nodes] == -self.gauss[(candidates[-1][2][0]+1)%self.nodes]:
+                    elif self.gauss[(candidates[-1][1][0]+1)%n] == -self.gauss[(candidates[-1][2][0]+1)%n]:
                         #both c and -c appear after -a and -b in the code
-                        candidates[-1][1].append((candidates[-1][1][0]+1)%self.nodes)
-                        candidates[-1][2].append((candidates[-1][2][0]+1)%self.nodes)
+                        candidates[-1][1].append((candidates[-1][1][0]+1)%n)
+                        candidates[-1][2].append((candidates[-1][2][0]+1)%n)
                     if len(candidates[-1][1]) == 1:
                         #no c found
                         del candidates[-1]

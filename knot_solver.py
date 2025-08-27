@@ -153,59 +153,59 @@ class Knot:
             self.nochange += 1
 
     def reidemeister_3(self):
-        #performs triangle operation on six nodes (a, b ... [-a, c] xor [c, -a] ... [-b, -c] xor [-c , -b])
-        #a, b stays in place. The rest gets moved around: -a becomes c becomes -b becomes -c becomes -a
-        candidates = []
+        # Performs the triangle move on six nodes:
+        # anchor positives a,b stay in place; we rotate (-a -> c -> -b -> -c -> -a)
         n = len(self.gauss)
-        if n > 7:
-            #only do this for at least 8 nodes. R1 and R2 are better for 6, 4 or 2 nodes for obvious reasons
-            for index, element in enumerate(self.gauss):
-                #find a and b
-                if element > 0 and self.gauss[(index+1)%n] > 0:
-                    candidates.append([[index,(index+1)%n],[self.gauss.index(-element)],[self.gauss.index(-self.gauss[(index+1)%n])]])
-                    if self.gauss[candidates[-1][1][0]-1] == -self.gauss[candidates[-1][2][0]-1]:
-                        #both c and -c appear before -a and -b in the code
-                        candidates[-1][1].append(candidates[-1][1][0]-1)
-                        candidates[-1][2].append(candidates[-1][2][0]-1)
-                    elif self.gauss[candidates[-1][1][0]-1] == -self.gauss[(candidates[-1][2][0]+1)%n]:
-                        #c appears before -a and -c appears after -b in the code
-                        candidates[-1][1].append(candidates[-1][1][0]-1)
-                        candidates[-1][2].append((candidates[-1][2][0]+1)%n)
-                    if self.gauss[(candidates[-1][1][0]+1)%n] == -self.gauss[candidates[-1][2][0]-1]:
-                        #c appears after -a and -c appears before -b in the code
-                        candidates[-1][1].append((candidates[-1][1][0]+1)%n)
-                        candidates[-1][2].append(candidates[-1][2][0]-1)
-                    elif self.gauss[(candidates[-1][1][0]+1)%n] == -self.gauss[(candidates[-1][2][0]+1)%n]:
-                        #both c and -c appear after -a and -b in the code
-                        candidates[-1][1].append((candidates[-1][1][0]+1)%n)
-                        candidates[-1][2].append((candidates[-1][2][0]+1)%n)
-                    if len(candidates[-1][1]) == 1:
-                        #no c found
-                        del candidates[-1]
-                    elif len(candidates[-1][1]) == 3:
-                        #two different c,-c pairs found, make copy of candidate and have both versions in the candidates
-                        candidates.append(copy.deepcopy(candidates[-1]))
-                        del candidates[-2][1][2]
-                        del candidates[-2][2][2]
-                        del candidates[-1][1][1]
-                        del candidates[-1][2][1]
+        if n <= 7:
+            self.nochange += 1
+            return
+
+        candidates = []
+        seen_quads = set()
+
+        for i in range(n):
+            a = self.gauss[i]
+            b = self.gauss[(i + 1) % n]
+            # find anchors: two adjacent positives
+            if a <= 0 or b <= 0:
+                continue
+
+            ia = self.gauss.index(-a)       # index of -a
+            ib = self.gauss.index(-b)       # index of -b
+
+            # neighbors around -a and -b (circular)
+            la, ra = (ia - 1) % n, (ia + 1) % n
+            lb, rb = (ib - 1) % n, (ib + 1) % n
+
+            # Four possible layouts:
+            # [-a, c] & [-b, -c] ; [-a, c] & [-c, -b] ; [c, -a] & [-b, -c] ; [c, -a] & [-c, -b]
+            for c_idx, mc_idx in ((ra, rb), (ra, lb), (la, rb), (la, lb)):
+                c_val  = self.gauss[c_idx]
+                mc_val = self.gauss[mc_idx]
+
+                # must be opposite, and c must be distinct from a,b
+                if c_val == -mc_val and abs(c_val) not in (abs(a), abs(b)):
+                    quad = (ia, c_idx, ib, mc_idx)
+                    if len(set(quad)) == 4:
+                        key = tuple(sorted(quad))
+                        if key not in seen_quads:
+                            seen_quads.add(key)
+                            candidates.append(quad)
+
         if candidates:
             self.nochange = 0
-            #Random choice as i cant be bothered to implement some kind of intelligence here
-            chosen = random.choice(candidates)
-            print('1 of ' + str(len(candidates)) + ' possible Reidemeister III performed!')
-            next_gauss = self.gauss[:]
-            #c moves to where -a was
-            next_gauss[chosen[1][0]] = self.gauss[chosen[1][1]]
-            #-b moves to where c was
-            next_gauss[chosen[1][1]] = self.gauss[chosen[2][0]]
-            #-c moves to where -b was
-            next_gauss[chosen[2][0]] = self.gauss[chosen[2][1]]
-            #-a moves to where -c was
-            next_gauss[chosen[2][1]] = self.gauss[chosen[1][0]]
-            self.gauss = next_gauss
+            ia, ic, ib, imc = random.choice(candidates)
+            print(f"1 of {len(candidates)} possible Reidemeister III performed!")
+
+            # 4-cycle: (-a) <- c <- (-b) <- (-c) <- (-a)
+            tmp = self.gauss[ia]
+            self.gauss[ia]  = self.gauss[ic]
+            self.gauss[ic]  = self.gauss[ib]
+            self.gauss[ib]  = self.gauss[imc]
+            self.gauss[imc] = tmp
         else:
             self.nochange += 1
+
         self.clean_gauss()
 
 knot = Knot(list(map(int, sys.argv[1].strip('[]').split(','))))
